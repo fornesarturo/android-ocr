@@ -26,12 +26,14 @@ import com.googlecode.tesseract.android.TessBaseAPI;
 import org.opencv.android.OpenCVLoader;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -48,13 +50,13 @@ public class MainActivity extends AppCompatActivity {
     private static final int TAKE_PICTURE = 1;
     private static final int STORAGE_PERMISSION = 2;
     private String lastImageURI;
-    private static final String DATA_PATH = Environment.getExternalStorageDirectory().toString() + "/OpenCVKorean/";
+    private static final String dataPath = Environment.getExternalStorageDirectory().toString() + "/OpenCVKorean/";
     private static final String lang = "eng";
 
     TextView text;
     ImageView image;
     Bitmap imageBitmap;
-
+//    String dataPath;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -62,11 +64,14 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         text = (TextView) findViewById(R.id.tv_image_text);
         image = (ImageView) findViewById(R.id.iv_image);
+//        dataPath = getFilesDir().getAbsolutePath();
+        Log.d(TAG, "dataPath: " + dataPath);
+//        checkFile(new File(dataPath + "tessdata/"), lang);
 
-
-        String[] paths = new String[] { DATA_PATH, DATA_PATH + "tessdata/" };
+        String[] paths = new String[] { dataPath, dataPath + "/tessdata/", dataPath + "/tesseract/tessdata/" };
 
         for (String path : paths) {
+            Log.d(TAG, "dataPath: " + path);
             File dir = new File(path);
             if (!dir.exists()) {
                 if (!dir.mkdirs()) {
@@ -76,20 +81,19 @@ public class MainActivity extends AppCompatActivity {
                     Log.v(TAG, "Created directory " + path + " on sdcard");
                 }
             }
-
         }
 
         // lang.traineddata file with the app (in assets folder)
         // You can get them at:
         // http://code.google.com/p/tesseract-ocr/downloads/list
         // This area needs work and optimization
-        if (!(new File(DATA_PATH + "tessdata/" + lang + ".traineddata")).exists()) {
+        if (!(new File(dataPath + "tessdata/" + lang + ".traineddata")).exists()) {
+            Log.d(TAG, "Language file exist! yiiiiiiiihhh!");
             try {
-
                 AssetManager assetManager = getAssets();
                 InputStream in = assetManager.open("tessdata/" + lang + ".traineddata");
                 //GZIPInputStream gin = new GZIPInputStream(in);
-                OutputStream out = new FileOutputStream(DATA_PATH
+                OutputStream out = new FileOutputStream(dataPath
                         + "tessdata/" + lang + ".traineddata");
 
                 // Transfer bytes from in to out
@@ -107,6 +111,50 @@ public class MainActivity extends AppCompatActivity {
             } catch (IOException e) {
                 Log.e(TAG, "Was unable to copy " + lang + " traineddata " + e.toString());
             }
+        } else {
+            Log.d(TAG, "Data file does not exist yiiihhh :c");
+        }
+    }
+
+    private void checkFile(File dir, String language) {
+        if (!dir.exists()&& dir.mkdirs()){
+            copyFiles(language);
+        }
+        if(dir.exists()) {
+            String datafilepath = dataPath + "/tessdata/"+ language + ".traineddata";
+            File datafile = new File(datafilepath);
+
+            if (!datafile.exists()) {
+                copyFiles(language);
+            }
+        }
+    }
+
+    private void copyFiles(String language) {
+        try {
+            String filepath = dataPath + "/tessdata/" + language + ".traineddata";
+            AssetManager assetManager = getAssets();
+
+            InputStream instream = assetManager.open("tessdata/" + language + ".traineddata");
+            OutputStream outstream = new FileOutputStream(filepath);
+
+            byte[] buffer = new byte[1024];
+            int read;
+            while ((read = instream.read(buffer)) != -1) {
+                outstream.write(buffer, 0, read);
+            }
+
+            outstream.flush();
+            outstream.close();
+            instream.close();
+
+            File file = new File(filepath);
+            if (!file.exists()) {
+                throw new FileNotFoundException();
+            }
+            Log.d(TAG, "language file exist");
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
@@ -131,13 +179,13 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "Copy bitmap");
         TessBaseAPI baseAPI = new TessBaseAPI();
         baseAPI.setDebug(true);
-        baseAPI.init(DATA_PATH, lang);
+        baseAPI.init(dataPath, lang);
         Log.d(TAG, "Initialized BaseAPI");
         baseAPI.setImage(bitmap);
         Log.d(TAG, "Set Image");
         String recognizedText = "";
         try {
-            //recognizedText = baseAPI.getUTF8Text();
+            recognizedText = baseAPI.getUTF8Text();
         } catch(Exception e) {
             e.printStackTrace();
         }
@@ -155,11 +203,11 @@ public class MainActivity extends AppCompatActivity {
         if ( recognizedText.length() != 0 ) {
             text.setText(recognizedText);
         }
-
+        bitmap.recycle();
     }
 
     private File createImageFile() throws IOException {
-        String timeName = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        String timeName = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
         String fileName = "IMAGE_" + timeName + "_";
         File dir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
         File image = File.createTempFile(
